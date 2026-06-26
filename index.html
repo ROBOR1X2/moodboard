@@ -1,3 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>moodboard</title>
+<style>
+:root{
+  --bg:#16161a; --canvas:#0e0e11; --panel:#1b1b21; --line:#2a2a33; --line2:#34343f;
+  --ink:#e9e9ec; --mut:#8a8a96; --accent:#58c9bd; --danger:#d56a6a;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg); color:var(--ink); font-family:var(--mono); font-size:13px;
+  overflow:hidden; user-select:none; -webkit-user-select:none;}
+#bar{height:46px; display:flex; align-items:center; gap:6px; padding:0 10px;
+  background:var(--panel); border-bottom:1px solid var(--line); position:relative; z-index:50;}
+.brand{font-weight:600; letter-spacing:.12em; text-transform:uppercase; font-size:11px;
+  color:var(--accent); margin-right:8px; white-space:nowrap}
+.brand .dot{color:var(--mut)}
+button.tool, label.tool{font-family:var(--mono); font-size:12px; color:var(--ink);
+  background:transparent; border:1px solid var(--line2); border-radius:6px; padding:6px 10px;
+  cursor:pointer; line-height:1; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;}
+button.tool:hover, label.tool:hover{border-color:var(--accent); color:#fff}
+button.tool:active{transform:translateY(1px)}
+.sep{width:1px; height:22px; background:var(--line); margin:0 4px}
+.spring{flex:1}
+.count{color:var(--mut); font-size:11px; white-space:nowrap}
+input[type=file]{display:none}
+input[type=color].pick{width:30px; height:30px; padding:0; border:1px solid var(--line2);
+  border-radius:6px; background:transparent; cursor:pointer;}
+input[type=color].pick::-webkit-color-swatch-wrapper{padding:3px}
+input[type=color].pick::-webkit-color-swatch{border:none; border-radius:3px}
+#stage{position:absolute; top:46px; left:0; right:0; bottom:0; overflow:auto;
+  background:var(--canvas); cursor:grab;}
+#stage.panning{cursor:grabbing}
+#stage.drop{box-shadow:inset 0 0 0 2px var(--accent)}
+#board{position:relative; width:4200px; height:3000px;
+  background-image:radial-gradient(var(--line) 1px, transparent 1px);
+  background-size:26px 26px; background-position:13px 13px;}
+.item{position:absolute; touch-action:none}
+.item .frame{position:absolute; inset:0; border:1px solid transparent; border-radius:3px}
+.item.sel .frame{border-color:var(--accent)}
+.item img{width:100%; height:100%; object-fit:cover; display:block; border-radius:3px;
+  pointer-events:none; box-shadow:0 6px 22px rgba(0,0,0,.45)}
+.item.text .body{width:100%; height:100%; padding:10px 12px; border-radius:3px;
+  background:#1f1f27; border:1px solid var(--line2); color:var(--ink); font-family:var(--sans);
+  font-size:15px; line-height:1.45; overflow:auto; outline:none; white-space:pre-wrap;
+  word-break:break-word; box-shadow:0 6px 22px rgba(0,0,0,.4);}
+.item.text .body:empty::before{content:"type…"; color:var(--mut)}
+.item.text.editing{cursor:text}
+.item.text.editing .body{user-select:text; -webkit-user-select:text}
+.item.swatch .body{width:100%; height:100%; border-radius:3px; position:relative;
+  box-shadow:0 6px 22px rgba(0,0,0,.4); display:flex; align-items:flex-end;}
+.item.swatch .hex{font-family:var(--mono); font-size:11px; padding:4px 6px; width:100%;
+  background:rgba(0,0,0,.55); color:#fff; letter-spacing:.06em;
+  border-bottom-left-radius:3px; border-bottom-right-radius:3px; text-align:center; cursor:copy;}
+.handle{position:absolute; width:12px; height:12px; background:var(--accent);
+  border:1px solid #06100f; border-radius:2px; display:none; z-index:3}
+.item.sel .handle{display:block}
+.handle.br{right:-6px; bottom:-6px; cursor:nwse-resize}
+.del{position:absolute; right:-9px; top:-9px; width:20px; height:20px; border-radius:50%;
+  background:var(--danger); color:#fff; border:1px solid #3a1414; display:none;
+  align-items:center; justify-content:center; cursor:pointer; font-family:var(--mono);
+  font-size:13px; line-height:1; z-index:4}
+.item.sel .del{display:flex}
+#hint{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  pointer-events:none; color:var(--mut); text-align:center; z-index:1}
+#hint .box{border:1px dashed var(--line2); border-radius:10px; padding:26px 34px; line-height:1.8}
+#hint b{color:var(--ink)}
+kbd{font-family:var(--mono); background:var(--panel); border:1px solid var(--line2);
+  border-radius:4px; padding:1px 6px; font-size:11px; color:var(--ink)}
+#toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--panel); border:1px solid var(--line2); color:var(--ink); padding:8px 14px;
+  border-radius:8px; font-size:12px; opacity:0; pointer-events:none;
+  transition:opacity .18s, transform .18s; z-index:200}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <span class="brand">moodboard<span class="dot">▮</span></span>
+  <label class="tool" title="Add image(s)">+ image
+    <input id="file" type="file" accept="image/*" multiple>
+  </label>
+  <button class="tool" id="addText">+ text</button>
+  <input class="pick" id="pick" type="color" value="#58c9bd" title="Pick a colour, then drop a swatch">
+  <button class="tool" id="addSwatch">+ swatch</button>
+  <button class="tool" id="eyedrop" title="Sample a colour" style="display:none">eyedropper</button>
+  <span class="sep"></span>
+  <button class="tool" id="save" title="Save board to a file">save</button>
+  <label class="tool" title="Open a board file">open
+    <input id="open" type="file" accept="application/json,.json,.mood">
+  </label>
+  <button class="tool" id="png" title="Export as PNG image">png</button>
+  <span class="sep"></span>
+  <button class="tool" id="clear" title="Remove everything">clear</button>
+  <span class="spring"></span>
+  <span class="count" id="count">0 items</span>
+</div>
+
+<div id="stage">
+  <div id="board">
+    <div id="hint"><div class="box">
+      <b>drop images here</b> &nbsp;·&nbsp; or paste with <kbd>⌘V</kbd><br>
+      drag empty space to pan &nbsp;·&nbsp; <kbd>del</kbd> removes selected
+    </div></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
 (function(){
   "use strict";
   const $ = s => document.querySelector(s);
@@ -233,3 +349,6 @@
   requestAnimationFrame(()=>{ stage.scrollLeft=(board.clientWidth-stage.clientWidth)/2;
     stage.scrollTop=(board.clientHeight-stage.clientHeight)/2; });
 })();
+</script>
+</body>
+</html>
